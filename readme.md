@@ -5,4 +5,6 @@ Use after importing new model into app.py.\
 Create migration:\
 `python manager.py migrate`\
 Apply it:\
-`python manage.py db upgrade`
+`python manage.py db upgrade`\
+\
+**WARNING**: Secret key must be a length of multiple of 2. 
