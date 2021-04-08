@@ -13,6 +13,8 @@ class Config(object):
     CSRF_ENABLED = True
     SECRET_KEY = os.environ['SECRET_KEY']
     SQLALCHEMY_DATABASE_URI = os.environ['DB_URL']
+    MAIL_USE_TLS = True
+    MAIL_USE_SSL = False
 
 
 class ProductionConfig(Config):

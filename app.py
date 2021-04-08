@@ -1,6 +1,8 @@
 from flask import request, abort, jsonify, url_for, g, make_response
-from database import app, db, auth
+from database import app, db, auth, mail
+from flask_mail import Message
 from models import User
+import os
 
 
 @auth.verify_password
@@ -36,11 +38,10 @@ def register_user():
 
     # TODO validate email and stuff
     # TODO return json on abort instead of html
-    # abort(make_response(jsonify(message="Message goes here"), 400))
     if None in [first_name, last_name, username, password, email]:
-        abort(400, 'Missing registration arguments')
+        abort(make_response(jsonify(message="Missing registration arguments"), 400))
     if User.query.filter_by(username=username).first() is not None:
-        abort(400, 'User already registered')
+        abort(make_response(jsonify(message="User already registered"), 400))
 
     user = User(
         first_name=first_name,
@@ -51,6 +52,9 @@ def register_user():
 
     db.session.add(user)
     db.session.commit()
+    msg = Message('Registration', sender=os.environ['MAIL_USERNAME'], recipients=[email])
+    msg.body = "Thank You for registering to c-hat."
+    mail.send(msg)
     return jsonify({'id': user.id}), 201, {'Location': url_for('get_user_by_id', id=user.id, _external=True)}
 
 
@@ -58,7 +62,7 @@ def register_user():
 def get_user_by_id(id):
     user = User.query.get(id)
     if not user:
-        abort(404, 'User not found')
+        abort(make_response(jsonify(message="User not found"), 404))
     return jsonify({'username': user.username})
 
 
