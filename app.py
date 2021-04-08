@@ -1,4 +1,4 @@
-from flask import request, abort, jsonify, url_for, g
+from flask import request, abort, jsonify, url_for, g, make_response
 from database import app, db, auth
 from models import User
 
@@ -36,6 +36,7 @@ def register_user():
 
     # TODO validate email and stuff
     # TODO return json on abort instead of html
+    # abort(make_response(jsonify(message="Message goes here"), 400))
     if None in [first_name, last_name, username, password, email]:
         abort(400, 'Missing registration arguments')
     if User.query.filter_by(username=username).first() is not None:

@@ -1,0 +1,27 @@
+version: "3"
+services:
+  db:
+    image: postgres
+    volumes:
+      - db_data:/var/lib/postgresql/data
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_DB: ${POSTGRES_DB}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+    networks:
+      - C_hat_net
+    ports:
+      - ${POSTGRES_DB_PORT}:5432
+
+  panel:
+    image: adminer
+    networks:
+      - C_hat_net
+    ports:
+      - 8080:8080
+
+networks:
+  C_hat_net:
+
+volumes:
+  db_data:
