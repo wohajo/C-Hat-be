@@ -1,12 +1,10 @@
 import os
 
 from flask import abort, jsonify, url_for, g, make_response
-from flask import render_template, session, request, \
-    copy_current_request_context
+from flask import render_template, request
 from flask_mail import Message
-from flask_socketio import emit, disconnect
 
-from database import app, db, auth, mail, socketio, thread_lock
+from database import app, db, auth, mail, socketio
 from models import User
 from utils import abort_with_message
 
@@ -23,13 +21,34 @@ def verify_password(username_or_token, password):
     g.user = user
     return True
 
+# TODO fix error handling to return good json message
+# error handlers
+
+
+@app.errorhandler(405)
+def method_not_allowed_handler(e):
+    return jsonify(message="Invalid request"), 405
+
+
+@app.errorhandler(500)
+def internal_error_handler(e):
+    return jsonify(message="Something went wrong"), 500
+
+
+@app.errorhandler(401)
+def internal_error_handler(e):
+    return jsonify(message="Wrong credentials"), 401
+
+
+# end of error handlers
+
 
 @app.route('/hello', methods=['GET'])
 def hello():
     return jsonify({'hello': 'world'})
 
 
-@app.route('/api/auth/login')
+@app.route('/api/auth/login', methods=['POST'])
 @auth.login_required
 def get_auth_token():
     token = g.user.generate_auth_token(os.environ['TOKEN_TIME_VALIDITY'])
@@ -95,6 +114,7 @@ def message_received(methods=['GET', 'POST']):
 def handle_my_custom_event(json, methods=['GET', 'POST']):
     print('received my event: ' + str(json))
     socketio.emit('my response', json, callback=message_received)
+
 
 # end of socket test
 
