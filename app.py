@@ -8,6 +8,7 @@ from flask_socketio import emit, disconnect
 
 from database import app, db, auth, mail, socketio, thread_lock
 from models import User
+from utils import abort_with_message
 
 thread = None
 
@@ -31,8 +32,8 @@ def hello():
 @app.route('/api/auth/login')
 @auth.login_required
 def get_auth_token():
-    token = g.user.generate_auth_token(600)
-    return jsonify({'token': token, 'duration': 600})
+    token = g.user.generate_auth_token(os.environ['TOKEN_TIME_VALIDITY'])
+    return jsonify({'token': token, 'duration': os.environ['TOKEN_TIME_VALIDITY']})
 
 
 @app.route('/api/users/register', methods=['POST'])
@@ -46,9 +47,9 @@ def register_user():
     # TODO validate email and stuff
     # TODO return json on abort instead of html
     if None in [first_name, last_name, username, password, email]:
-        abort(make_response(jsonify(message="Missing registration arguments"), 400))
+        abort_with_message("Form not complete", 400)
     if User.query.filter_by(username=username).first() is not None:
-        abort(make_response(jsonify(message="User already registered"), 400))
+        abort_with_message("User already registered", 400)
 
     user = User(
         first_name=first_name,
