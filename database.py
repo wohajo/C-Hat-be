@@ -33,5 +33,5 @@ mail = Mail(app)
 # the best option based on installed packages.
 
 async_mode = None
-socketio = SocketIO(app, async_mode=async_mode)
+socketio = SocketIO(app, async_mode=async_mode, cors_allowed_origins='*')
 thread_lock = Lock()

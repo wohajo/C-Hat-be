@@ -7,7 +7,7 @@ Right now while gunicorn is not enabled:\
 ### Database migration 
 Use after importing new model into app.py.\
 Create migration:\
-`$ python manager.py migrate`\
+`$ python manager.py db migrate`\
 Apply it:\
 `$ python manage.py db upgrade`\
 \
