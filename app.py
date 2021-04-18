@@ -113,10 +113,10 @@ def message_received(methods=['GET', 'POST']):
     print('received message')
 
 
-@socketio.on('my event')
+@socketio.on('global message')
 def handle_my_custom_event(json, methods=['GET', 'POST']):
     print('received event: ' + str(json))
-    socketio.emit('my response', json, callback=message_received)
+    socketio.emit('global response', json, callback=message_received)
 
 
 @socketio.event
