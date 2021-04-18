@@ -25,6 +25,7 @@ app.config['SECRET_KEY'] = os.environ['SECRET_KEY']
 db = SQLAlchemy(app)
 auth = HTTPBasicAuth()
 mail = Mail(app)
+chat_rooms = {}
 
 # TODO try to use gunicorn instead of app.py
 # INFO

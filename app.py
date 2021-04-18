@@ -1,18 +1,16 @@
 import os
-import re
 
-import jwt
 from flask import abort, jsonify, url_for, g, make_response
 from flask import render_template, request
 from flask_mail import Message
 from flask_socketio import join_room, leave_room, emit
 
-from database import app, db, auth, mail, socketio
+from database import app, db, auth, mail, socketio, chat_rooms
 from models import User
 from api_utils import abort_with_message
+from room_utils import can_perform_in_room, is_room_already_created
 
 thread = None
-rooms = {}
 
 
 @auth.verify_password
@@ -84,9 +82,10 @@ def register_user():
 
     db.session.add(user)
     db.session.commit()
-    msg = Message('Registration', sender=os.environ['MAIL_USERNAME'], recipients=[email])
-    msg.body = "Thank You for registering to c-hat."
-    mail.send(msg)
+    # TODO fix this long lasting email sending
+    # msg = Message('Registration', sender=os.environ['MAIL_USERNAME'], recipients=[email])
+    # msg.body = "Thank You for registering to c-hat."
+    # mail.send(msg)
     return jsonify({'id': user.id}), 201, {'Location': url_for('get_user_by_id', id=user.id, _external=True)}
 
 
@@ -130,64 +129,66 @@ def my_room_event(message):
 # TODO limit users to 2
 # rooms are named by this pattern: user1/user2
 
-def decode_token_and_check_username(token, username, room_name):
-    """
-    :param token: jwt token string
-    :param username: username string
-    :param room_name: room_name string
-
-    Checks if token is valid and username from token and given is equal.
-    """
-    try:
-        decoded_token = jwt.decode(token,
-                                   app.config['SECRET_KEY'],
-                                   algorithms=['HS256'])
-        username_from_token = decoded_token.get('username')
-
-        if username_from_token == username and (re.match("{}/*".format(username), username) or re.match("/{}".format(username), username)):
-            return True
-        else:
-            return False
-    except:
-        return False
-
-
 @socketio.event
 def join(message):
-    print(rooms)
-    room_name = message['room']
-    # verify if user can perform this action for given room
-    can_join = decode_token_and_check_username(message['token'], message['username'], room_name)
+    print("chat rooms: {}".format(chat_rooms))
 
-    if can_join is False:
-        print("{} can not join {}".format(message['username'], room_name))
+    room_name = message['room']
+    token = message['token']
+    username = message['username']
+
+    print("{} {} {}".format(room_name, token, username))
+
+    if can_perform_in_room(room_name, token, username) is False:
+        print("{} can not join {}".format(username, room_name))
         return
 
-    if room_name in rooms:
-        users_in_room = rooms.get(room_name)
-
-        if len(users_in_room) < 2:
-            join_room(message['room'])
-            rooms[room_name] = rooms[room_name].append(message['username'])
-            print("{} joined to {}".format(message['username'], room_name))
-
-        else:
-            return
-
+    if is_room_already_created(chat_rooms, room_name) is False:
+        users_in_room = [username]
+        chat_rooms[room_name] = users_in_room
+        join_room(room_name)
+        print("{} created and joined to {}".format(username, room_name))
     else:
-        arr = []
-        arr = arr.append(message['username'])
-        rooms[room_name] = arr
-        join_room(message['room'])
-        print("{} joined to {}".format(message['username'], room_name))
+        users_in_room = chat_rooms[room_name]
+
+        if len(users_in_room) < 3:
+            users_in_room.append(username)
+            chat_rooms[room_name] = users_in_room
+            join_room(room_name)
+            print("{} joined to {}".format(username, room_name))
+
+        elif username in users_in_room:
+            print("{} already in {}".format(username, room_name))
+    print("chat rooms: {}".format(chat_rooms))
 
 
 @socketio.event
 def leave(message):
-    # verify if user can perform this action for given room
+    print("chat rooms: {}".format(chat_rooms))
 
-    leave_room(message['room'])
-    print("User left {}".format(message['room']))
+    room_name = message['room']
+    token = message['token']
+    username = message['username']
+
+    print("{} {} {}".format(room_name, token, username))
+
+    if can_perform_in_room(room_name, token, username) is False:
+        print("{} can not leave {}".format(username, room_name))
+        return
+
+    users_in_room = chat_rooms[room_name]
+
+    if username in users_in_room:
+        users_in_room.remove(username)
+        print("{} left {}".format(username, room_name))
+        chat_rooms[room_name] = users_in_room
+    else:
+        print("{} can not leave {}, as he is not in this room".format(username, room_name))
+
+    if len(users_in_room) == 0:
+        chat_rooms.pop(room_name)
+
+    print("chat rooms: {}".format(chat_rooms))
 
 
 if __name__ == '__main__':
