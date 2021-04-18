@@ -126,10 +126,6 @@ def my_room_event(message):
          to=message['room'])
 
 
-# TODO limit users to 2
-# rooms are named by this pattern: user1/user2 DEPRECEATED
-# rooms should be named by xoring users' usernames
-
 @socketio.event
 def join(message):
     print("chat rooms: {}".format(chat_rooms))
