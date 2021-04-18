@@ -1,14 +1,18 @@
 import os
+import re
 
+import jwt
 from flask import abort, jsonify, url_for, g, make_response
 from flask import render_template, request
 from flask_mail import Message
+from flask_socketio import join_room, leave_room, emit
 
 from database import app, db, auth, mail, socketio
 from models import User
-from utils import abort_with_message
+from api_utils import abort_with_message
 
 thread = None
+rooms = {}
 
 
 @auth.verify_password
@@ -20,6 +24,7 @@ def verify_password(username_or_token, password):
             return False
     g.user = user
     return True
+
 
 # TODO fix error handling to return good json message
 # error handlers
@@ -52,7 +57,7 @@ def hello():
 @auth.login_required
 def get_auth_token():
     token = g.user.generate_auth_token(os.environ['TOKEN_TIME_VALIDITY'])
-    return jsonify({'token': token, 'duration': os.environ['TOKEN_TIME_VALIDITY']})
+    return jsonify({'token': token, 'duration': os.environ['TOKEN_TIME_VALIDITY'], 'username': g.user.username})
 
 
 @app.route('/api/users/register', methods=['POST'])
@@ -99,8 +104,7 @@ def get_resource():
     return jsonify({'data': 'Hello, %s!' % g.user.username})
 
 
-# socket test
-
+# test socket website
 @app.route('/')
 def index():
     return render_template('index.html', async_mode=socketio.async_mode)
@@ -116,7 +120,74 @@ def handle_my_custom_event(json, methods=['GET', 'POST']):
     socketio.emit('my response', json, callback=message_received)
 
 
-# end of socket test
+@socketio.event
+def my_room_event(message):
+    emit('my_response',
+         {'data': message['data']},
+         to=message['room'])
+
+
+# TODO limit users to 2
+# rooms are named by this pattern: user1/user2
+
+def decode_token_and_check_username(token, username, room_name):
+    """
+    :param token: jwt token string
+    :param username: username string
+    :param room_name: room_name string
+
+    Checks if token is valid and username from token and given is equal.
+    """
+    try:
+        decoded_token = jwt.decode(token,
+                                   app.config['SECRET_KEY'],
+                                   algorithms=['HS256'])
+        username_from_token = decoded_token.get('username')
+
+        if username_from_token == username and (re.match("{}/*".format(username), username) or re.match("/{}".format(username), username)):
+            return True
+        else:
+            return False
+    except:
+        return False
+
+
+@socketio.event
+def join(message):
+    print(rooms)
+    room_name = message['room']
+    # verify if user can perform this action for given room
+    can_join = decode_token_and_check_username(message['token'], message['username'], room_name)
+
+    if can_join is False:
+        print("{} can not join {}".format(message['username'], room_name))
+        return
+
+    if room_name in rooms:
+        users_in_room = rooms.get(room_name)
+
+        if len(users_in_room) < 2:
+            join_room(message['room'])
+            rooms[room_name] = rooms[room_name].append(message['username'])
+            print("{} joined to {}".format(message['username'], room_name))
+
+        else:
+            return
+
+    else:
+        arr = []
+        arr = arr.append(message['username'])
+        rooms[room_name] = arr
+        join_room(message['room'])
+        print("{} joined to {}".format(message['username'], room_name))
+
+
+@socketio.event
+def leave(message):
+    # verify if user can perform this action for given room
+
+    leave_room(message['room'])
+    print("User left {}".format(message['room']))
 
 
 if __name__ == '__main__':
