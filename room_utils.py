@@ -4,7 +4,7 @@ import jwt
 from database import app
 
 
-def can_perform_in_room(room_name, token, username):
+def can_perform_in_room(room_name, token, username, recipient):
     """
     Checks if user can perform action in given room.
 
@@ -16,6 +16,8 @@ def can_perform_in_room(room_name, token, username):
         JWT token to validate.
     username : string
         Username to validate.
+    recipient : string
+        Recipient username to validate.
     Returns
     -------
     boolean
@@ -26,9 +28,11 @@ def can_perform_in_room(room_name, token, username):
                                    app.config['SECRET_KEY'],
                                    algorithms=['HS256'])
         username_from_token = decoded_token.get('username')
+        computed_room = hash(frozenset([recipient, username]))
 
-        if username_from_token == username and (
-                re.match("{}/*".format(username), room_name) or re.match("/{}".format(username), room_name)):
+        if username_from_token == username and computed_room == room_name:
+            print("token_user: {}, user: {}".format(username_from_token, username))
+            print("room_name: {}, hash: {}".format(room_name, computed_room))
             return True
         else:
             return False

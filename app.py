@@ -127,19 +127,21 @@ def my_room_event(message):
 
 
 # TODO limit users to 2
-# rooms are named by this pattern: user1/user2
+# rooms are named by this pattern: user1/user2 DEPRECEATED
+# rooms should be named by xoring users' usernames
 
 @socketio.event
 def join(message):
     print("chat rooms: {}".format(chat_rooms))
 
-    room_name = message['room']
+    recipient = message['recipient']
     token = message['token']
     username = message['username']
+    room_name = hash(frozenset([recipient, username]))
 
-    print("{} {} {}".format(room_name, token, username))
+    print("{} {} {} to {}".format(room_name, token, username, recipient))
 
-    if can_perform_in_room(room_name, token, username) is False:
+    if can_perform_in_room(room_name, token, username, recipient) is False:
         print("{} can not join {}".format(username, room_name))
         return
 
@@ -151,14 +153,14 @@ def join(message):
     else:
         users_in_room = chat_rooms[room_name]
 
-        if len(users_in_room) < 3:
+        if username in users_in_room:
+            print("{} already in {}".format(username, room_name))
+        elif len(users_in_room) < 3:
             users_in_room.append(username)
             chat_rooms[room_name] = users_in_room
             join_room(room_name)
             print("{} joined to {}".format(username, room_name))
 
-        elif username in users_in_room:
-            print("{} already in {}".format(username, room_name))
     print("chat rooms: {}".format(chat_rooms))
 
 
@@ -166,13 +168,14 @@ def join(message):
 def leave(message):
     print("chat rooms: {}".format(chat_rooms))
 
-    room_name = message['room']
+    recipient = message['recipient']
     token = message['token']
     username = message['username']
+    room_name = hash(frozenset([recipient, username]))
 
-    print("{} {} {}".format(room_name, token, username))
+    print("{} {} {} to {}".format(room_name, token, username, recipient))
 
-    if can_perform_in_room(room_name, token, username) is False:
+    if can_perform_in_room(room_name, token, username, recipient) is False:
         print("{} can not leave {}".format(username, room_name))
         return
 
