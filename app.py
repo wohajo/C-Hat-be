@@ -2,12 +2,11 @@ import os
 
 from flask import abort, jsonify, url_for, g, make_response
 from flask import render_template, request
-from flask_mail import Message
-from flask_socketio import join_room, leave_room, emit
+from flask_socketio import join_room, rooms
 
-from database import app, db, auth, mail, socketio, chat_rooms
-from models import User
 from api_utils import abort_with_message
+from database import app, db, auth, socketio, chat_rooms, clients
+from models import User
 from room_utils import can_perform_in_room, is_room_already_created
 
 thread = None
@@ -103,37 +102,24 @@ def get_resource():
     return jsonify({'data': 'Hello, %s!' % g.user.username})
 
 
-# test socket website
-@app.route('/')
-def index():
-    return render_template('index.html', async_mode=socketio.async_mode)
-
-
 def message_received(methods=['GET', 'POST']):
     print('received message')
 
 
 @socketio.on('global message')
-def handle_my_custom_event(json, methods=['GET', 'POST']):
+def global_message(json, methods=['GET', 'POST']):
     print('received event: ' + str(json))
     socketio.emit('global response', json, callback=message_received)
 
 
 @socketio.event
-def my_room_event(message):
-    emit('my_response',
-         {'data': message['data']},
-         to=message['room'])
-
-
-@socketio.event
 def join(message):
-    print("chat rooms: {}".format(chat_rooms))
 
     recipient = message['recipient']
     token = message['token']
     username = message['username']
-    room_name = hash(frozenset([recipient, username]))
+    room_name = str(hash(frozenset([recipient, username])))
+    sid = request.sid
 
     print("{} {} {} to {}".format(room_name, token, username, recipient))
 
@@ -159,23 +145,28 @@ def join(message):
 
     print("chat rooms: {}".format(chat_rooms))
 
+    clients.append(sid)
+    print("{}: {}".format(username, sid))
+    print("{}: {}".format(username, rooms()))
+    socketio.emit('room_name_response', {'roomName': room_name, 'recipient': recipient}, to=sid)
+
 
 @socketio.event
 def leave(message):
-    print("chat rooms: {}".format(chat_rooms))
-
     recipient = message['recipient']
     token = message['token']
     username = message['username']
-    room_name = hash(frozenset([recipient, username]))
-
-    print("{} {} {} to {}".format(room_name, token, username, recipient))
+    room_name = str(hash(frozenset([recipient, username])))
 
     if can_perform_in_room(room_name, token, username, recipient) is False:
         print("{} can not leave {}".format(username, room_name))
         return
 
-    users_in_room = chat_rooms[room_name]
+    if room_name in chat_rooms:
+        users_in_room = chat_rooms[room_name]
+    else:
+        print("{} can not leave room as it not exists".format(username))
+        return
 
     if username in users_in_room:
         users_in_room.remove(username)
@@ -186,8 +177,6 @@ def leave(message):
 
     if len(users_in_room) == 0:
         chat_rooms.pop(room_name)
-
-    print("chat rooms: {}".format(chat_rooms))
 
 
 if __name__ == '__main__':

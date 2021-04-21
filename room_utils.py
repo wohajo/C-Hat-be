@@ -28,7 +28,7 @@ def can_perform_in_room(room_name, token, username, recipient):
                                    app.config['SECRET_KEY'],
                                    algorithms=['HS256'])
         username_from_token = decoded_token.get('username')
-        computed_room = hash(frozenset([recipient, username]))
+        computed_room = str(hash(frozenset([recipient, username])))
 
         if username_from_token == username and computed_room == room_name:
             print("token_user: {}, user: {}".format(username_from_token, username))
