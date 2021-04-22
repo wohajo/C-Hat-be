@@ -1,11 +1,11 @@
 import os
 
 from flask import abort, jsonify, url_for, g, make_response
-from flask import render_template, request
+from flask import request
 from flask_socketio import join_room, rooms
 
 from api_utils import abort_with_message
-from database import app, db, auth, socketio, chat_rooms, clients
+from database import app, db, auth, socketio, chat_rooms
 from models import User
 from room_utils import can_perform_in_room, is_room_already_created
 
@@ -145,7 +145,6 @@ def join(message):
 
     print("chat rooms: {}".format(chat_rooms))
 
-    clients.append(sid)
     print("{}: {}".format(username, sid))
     print("{}: {}".format(username, rooms()))
     socketio.emit('room_name_response', {'roomName': room_name, 'recipient': recipient}, to=sid)
