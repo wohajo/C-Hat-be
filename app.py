@@ -38,7 +38,7 @@ def internal_error_handler(e):
 
 
 @app.errorhandler(401)
-def internal_error_handler(e):
+def wrong_credentials_handler(e):
     return jsonify(message="Wrong credentials"), 401
 
 

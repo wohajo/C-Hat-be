@@ -58,8 +58,6 @@ class Message(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     user_from_id = db.Column(db.Integer, nullable=False)
     user_to_id = db.Column(db.Integer, nullable=False)
-    username_from = db.Column(db.String(64), nullable=False)
-    username_to = db.Column(db.String(64), nullable=False)
     timestamp = db.Column(db.DateTime, nullable=False)
     contents = db.Column(db.String(), nullable=False)
 
@@ -68,8 +66,6 @@ class Message(db.Model):
             'id': self.id,
             'user_from_id': self.user_from_id,
             'user_to_id': self.user_to_id,
-            'username_from': self.username_from,
-            'username_to': self.username_to,
             'timestamp': self.timestamp,
             'contents': self.contents
         }
@@ -81,18 +77,14 @@ class Invitation(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     user_from_id = db.Column(db.Integer, nullable=False)
     user_to_id = db.Column(db.Integer, nullable=False)
-    username_from = db.Column(db.String(64), nullable=False)
-    username_to = db.Column(db.String(64), nullable=False)
     timestamp = db.Column(db.DateTime, nullable=False)
-    status = db.Column(InvitationStatus, nullable=False)
+    status = db.Column(db.Enum(InvitationStatus), nullable=False)
 
     def serialize(self):
         return {
             'id': self.id,
             'user_from_id': self.user_from_id,
             'user_to_id': self.user_to_id,
-            'username_from': self.username_from,
-            'username_to': self.username_to,
             'timestamp': self.timestamp,
             'contents': self.contents
         }
