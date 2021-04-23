@@ -1,7 +1,7 @@
 import enum
 
 
-class InvitationStatus(enum.Enum):
+class FriendsRequestStatus(enum.Enum):
     rejected = "rejected"
     pending = "pending"
     accepted = "accepted"

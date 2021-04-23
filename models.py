@@ -1,10 +1,13 @@
 import time
 
 import jwt
+from sqlalchemy import ForeignKey
+from sqlalchemy.dialects.postgresql import ENUM
+from sqlalchemy.orm import relationship
 from werkzeug.security import generate_password_hash, check_password_hash
 
 from database import db, app
-from enums import InvitationStatus
+from enums import FriendsRequestStatus
 
 
 class User(db.Model):
@@ -56,10 +59,12 @@ class Message(db.Model):
     __tablename__ = 'messages'
 
     id = db.Column(db.Integer, primary_key=True)
-    user_from_id = db.Column(db.Integer, nullable=False)
-    user_to_id = db.Column(db.Integer, nullable=False)
+    user_from_id = db.Column(db.Integer, ForeignKey('users.id'), nullable=False)
+    user_to_id = db.Column(db.Integer, ForeignKey('users.id'), nullable=False)
     timestamp = db.Column(db.DateTime, nullable=False)
     contents = db.Column(db.String(), nullable=False)
+    message_sender = relationship("User", foreign_keys=[user_from_id])
+    message_receiver = relationship("User", foreign_keys=[user_to_id])
 
     def serialize(self):
         return {
@@ -71,14 +76,16 @@ class Message(db.Model):
         }
 
 
-class Invitation(db.Model):
-    __tablename__ = 'invitations'
+class FriendsRequest(db.Model):
+    __tablename__ = 'friends_requests'
 
     id = db.Column(db.Integer, primary_key=True)
-    user_from_id = db.Column(db.Integer, nullable=False)
-    user_to_id = db.Column(db.Integer, nullable=False)
+    user_from_id = db.Column(db.Integer, ForeignKey('users.id'), nullable=False)
+    user_to_id = db.Column(db.Integer, ForeignKey('users.id'), nullable=False)
     timestamp = db.Column(db.DateTime, nullable=False)
-    status = db.Column(db.Enum(InvitationStatus), nullable=False)
+    status = db.Column(ENUM(FriendsRequestStatus, create_type=False), nullable=False)
+    friends_request_sender = relationship("User", foreign_keys=[user_from_id])
+    friends_request_receiver = relationship("User", foreign_keys=[user_to_id])
 
     def serialize(self):
         return {
