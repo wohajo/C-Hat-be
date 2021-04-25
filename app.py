@@ -110,14 +110,20 @@ def invite_user(user_id):
     user_to = User.query.get(user_id)
     if not user_to:
         abort(make_response(jsonify(message="User not found"), 404))
+
+    friends_request_check = FriendsRequest.query.filter_by(user_from_id=user_from.id,
+                                                           user_to_id=user_to.id,
+                                                           status=FriendsRequestStatus.pending).all()
+
+    if friends_request_check:
+        abort(make_response(jsonify(message="Invitation is already pending"), 409))
+
     friends_request = FriendsRequest(
         user_from_id=user_from.id,
         user_to_id=user_to.id,
         timestamp=datetime.now(timezone.utc),
-        status=FriendsRequestStatus.PENDING,
+        status=FriendsRequestStatus.pending,
     )
-
-    # TODO <FIX timezone
 
     db.session.add(friends_request)
     db.session.commit()
@@ -125,29 +131,45 @@ def invite_user(user_id):
     return jsonify({'id': friends_request.id})
 
 
-@app.route('/api/invites/incoming/my', methods=['GET'])
+@app.route('/api/invites/my/<route>', methods=['GET'])
 @auth.login_required()
-def get_my_incoming_invites():
+def get_my_invites(route):
     user = g.user
+
     if not user:
         abort(make_response(jsonify(message="User not found"), 404))
-    friends_request = FriendsRequest.query.filter_by(user_to_id=user.id).all()
-    friends_request_serialized = [fr.serialize() for fr in friends_request]
-    print(friends_request_serialized[0].status.name)
 
-    return jsonify({'invites': friends_request_serialized})
+    friends_requests = []
+
+    if route == "incoming":
+        friends_requests = FriendsRequest.query.filter_by(user_to_id=user.id).all()
+    elif route == "sent":
+        friends_requests = FriendsRequest.query.filter_by(user_from_id=user.id).all()
+    else:
+        abort(make_response(jsonify(message="Not found"), 404))
+
+    friends_requests_serialized = [fr.serialize() for fr in friends_requests]
+    return jsonify({'invites': friends_requests_serialized})
 
 
-@app.route('/api/invites/sent/my', methods=['GET'])
+@app.route('/api/invites/<action>/<int:invite_id>', methods=['POST'])
 @auth.login_required()
-def get_my_sent_invites():
-    user = g.user
-    if not user:
-        abort(make_response(jsonify(message="User not found"), 404))
-    friends_request = FriendsRequest.query.filter_by(user_from_id=user.id).all()
-    friends_request_serialized = [fr.serialize() for fr in friends_request]
+def accept_invite(action, invite_id):
+    if action != 'accept' or action != 'reject':
+        abort(make_response(jsonify(message="Not found"), 404))
 
-    return jsonify({'invites': friends_request_serialized})
+    friends_request = FriendsRequest.query.filter_by(id=invite_id).first()
+
+    if not friends_request:
+        abort(make_response(jsonify(message="Invite not found"), 404))
+
+    if action == "accept":
+        friends_request.status = FriendsRequestStatus.accepted
+    else:
+        friends_request.status = FriendsRequestStatus.rejected
+    db.session.commit()
+
+    return jsonify(message="OK"), 200
 
 
 def message_received(methods=['GET', 'POST']):
