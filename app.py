@@ -1,4 +1,5 @@
 import os
+from datetime import datetime, timezone
 
 from flask import abort, jsonify, url_for, g, make_response
 from flask import request
@@ -6,7 +7,8 @@ from flask_socketio import join_room, rooms
 
 from api_utils import abort_with_message
 from database import app, db, auth, socketio, chat_rooms
-from models import User
+from enums import FriendsRequestStatus
+from models import User, FriendsRequest
 from room_utils import can_perform_in_room, is_room_already_created
 
 thread = None
@@ -40,6 +42,11 @@ def internal_error_handler(e):
 @app.errorhandler(401)
 def wrong_credentials_handler(e):
     return jsonify(message="Wrong credentials"), 401
+
+
+@app.errorhandler(404)
+def wrong_credentials_handler(e):
+    return jsonify(message="Not found"), 404
 
 
 # end of error handlers
@@ -96,10 +103,51 @@ def get_user_by_id(id):
     return jsonify({'username': user.username})
 
 
-@app.route('/api/test')
+@app.route('/api/users/invite/<int:user_id>', methods=['POST'])
 @auth.login_required
-def get_resource():
-    return jsonify({'data': 'Hello, %s!' % g.user.username})
+def invite_user(user_id):
+    user_from = g.user
+    user_to = User.query.get(user_id)
+    if not user_to:
+        abort(make_response(jsonify(message="User not found"), 404))
+    friends_request = FriendsRequest(
+        user_from_id=user_from.id,
+        user_to_id=user_to.id,
+        timestamp=datetime.now(timezone.utc),
+        status=FriendsRequestStatus.PENDING,
+    )
+
+    # TODO <FIX timezone
+
+    db.session.add(friends_request)
+    db.session.commit()
+
+    return jsonify({'id': friends_request.id})
+
+
+@app.route('/api/invites/incoming/my', methods=['GET'])
+@auth.login_required()
+def get_my_incoming_invites():
+    user = g.user
+    if not user:
+        abort(make_response(jsonify(message="User not found"), 404))
+    friends_request = FriendsRequest.query.filter_by(user_to_id=user.id).all()
+    friends_request_serialized = [fr.serialize() for fr in friends_request]
+    print(friends_request_serialized[0].status.name)
+
+    return jsonify({'invites': friends_request_serialized})
+
+
+@app.route('/api/invites/sent/my', methods=['GET'])
+@auth.login_required()
+def get_my_sent_invites():
+    user = g.user
+    if not user:
+        abort(make_response(jsonify(message="User not found"), 404))
+    friends_request = FriendsRequest.query.filter_by(user_from_id=user.id).all()
+    friends_request_serialized = [fr.serialize() for fr in friends_request]
+
+    return jsonify({'invites': friends_request_serialized})
 
 
 def message_received(methods=['GET', 'POST']):
@@ -114,7 +162,6 @@ def global_message(json, methods=['GET', 'POST']):
 
 @socketio.event
 def join(message):
-
     recipient = message['recipient']
     token = message['token']
     username = message['username']

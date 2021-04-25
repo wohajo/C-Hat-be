@@ -2,6 +2,6 @@ import enum
 
 
 class FriendsRequestStatus(enum.Enum):
-    rejected = "rejected"
-    pending = "pending"
-    accepted = "accepted"
+    REJECTED = "rejected"
+    PENDING = "pending"
+    ACCEPTED = "accepted"
