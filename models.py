@@ -92,6 +92,6 @@ class FriendsRequest(db.Model):
             'id': self.id,
             'user_from_id': self.user_from_id,
             'user_to_id': self.user_to_id,
-            'timestamp': self.timestamp,
+            'timestamp': self.timestamp.isoformat(),
             'status': self.status.name
         }

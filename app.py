@@ -4,6 +4,7 @@ from datetime import datetime, timezone
 from flask import abort, jsonify, url_for, g, make_response
 from flask import request
 from flask_socketio import join_room, rooms
+from sqlalchemy import or_
 
 from api_utils import abort_with_message
 from database import app, db, auth, socketio, chat_rooms
@@ -168,6 +169,22 @@ def accept_invite(action, invite_id):
     else:
         friends_request.status = FriendsRequestStatus.rejected
     db.session.commit()
+
+    return jsonify(message="OK"), 200
+
+
+@app.route('/api/friends/my', methods=['GET'])
+@auth.login_required()
+def get_my_friends():
+    user = g.user
+
+    fr = db.session.query(FriendsRequest) \
+        .filter(or_(FriendsRequest.friends_request_sender.id == user.id, FriendsRequest.friends_request_receiver.id == user.id)) \
+        .filter_by(status=FriendsRequestStatus.accepted) \
+        .all()
+
+    friends = [f.friends_request_sender.serialize() if f.friends_request_sender != user else f.friends_request_receiver.serialize() for f in fr]
+    print(friends)
 
     return jsonify(message="OK"), 200
 
