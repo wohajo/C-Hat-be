@@ -96,12 +96,23 @@ def register_user():
     return jsonify({'id': user.id}), 201, {'Location': url_for('get_user_by_id', id=user.id, _external=True)}
 
 
-@app.route('/api/users/<int:id>')
-def get_user_by_id(id):
-    user = User.query.get(id)
+@app.route('/api/users/<_id>', methods=['GET'])
+@auth.login_required
+def get_user_by_id(_id):
+    user = User.query.get(_id)
     if not user:
         abort(make_response(jsonify(message="User not found"), 404))
     return jsonify({'username': user.username})
+
+
+@app.route('/api/users/find/<string:username>', methods=['GET'])
+@auth.login_required
+def find_users_with_username(username):
+    _username = username
+    users = User.query.filter(User.username.like('{}%'.format(username))).all()
+    users_serialized = [u.serialize() for u in users]
+
+    return jsonify({'users': users_serialized})
 
 
 @app.route('/api/users/invite/<int:user_id>', methods=['POST'])
@@ -109,6 +120,8 @@ def get_user_by_id(id):
 def invite_user(user_id):
     user_from = g.user
     user_to = User.query.get(user_id)
+    if user_from == user_to:
+        abort(make_response(jsonify(message="You cannot invite yourself"), 403))
     if not user_to:
         abort(make_response(jsonify(message="User not found"), 404))
 
@@ -179,14 +192,16 @@ def get_my_friends():
     user = g.user
 
     fr = db.session.query(FriendsRequest) \
-        .filter(or_(FriendsRequest.friends_request_sender.id == user.id, FriendsRequest.friends_request_receiver.id == user.id)) \
+        .filter(or_(FriendsRequest.friends_request_sender == user, FriendsRequest.friends_request_receiver == user)) \
         .filter_by(status=FriendsRequestStatus.accepted) \
         .all()
 
-    friends = [f.friends_request_sender.serialize() if f.friends_request_sender != user else f.friends_request_receiver.serialize() for f in fr]
+    friends = [
+        f.friends_request_sender.serialize() if f.friends_request_sender != user else f.friends_request_receiver.serialize()
+        for f in fr]
     print(friends)
 
-    return jsonify(message="OK"), 200
+    return jsonify({'friends': friends}), 200
 
 
 def message_received(methods=['GET', 'POST']):
@@ -199,6 +214,32 @@ def global_message(json, methods=['GET', 'POST']):
     socketio.emit('global response', json, callback=message_received)
 
 
+# json of a message:
+# roomName
+# sender
+# token
+# receiver
+# contents
+
+
+@socketio.event
+def send_to_room(json):
+    print("sending message to room")
+
+    if can_perform_in_room(json['roomName'], json['token'], json['sender'], json['receiver']) is False:
+        print("{} can not send message to {}".format(json['sender'], json['roomName']))
+        return
+
+    new_json = {
+        'roomName': json['roomName'],
+        'sender': json['sender'],
+        'receiver': json['receiver'],
+        'contents': json['contents']
+    }
+
+    socketio.emit('room_name_response', new_json, to=new_json['roomName'])
+
+
 @socketio.event
 def join(message):
     recipient = message['recipient']
@@ -208,6 +249,10 @@ def join(message):
     sid = request.sid
 
     print("{} {} {} to {}".format(room_name, token, username, recipient))
+
+    if username == recipient:
+        print("User cannot join room with himself")
+        return
 
     if can_perform_in_room(room_name, token, username, recipient) is False:
         print("{} can not join {}".format(username, room_name))
