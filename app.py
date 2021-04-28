@@ -7,7 +7,7 @@ from flask_socketio import join_room, rooms
 from sqlalchemy import or_
 
 from api_utils import abort_with_message
-from database import app, db, auth, socketio, chat_rooms
+from database import app, db, auth, socketIO, chat_rooms
 from enums import FriendsRequestStatus
 from models import User, FriendsRequest
 from room_utils import can_perform_in_room, is_room_already_created
@@ -199,7 +199,6 @@ def get_my_friends():
     friends = [
         f.friends_request_sender.serialize() if f.friends_request_sender != user else f.friends_request_receiver.serialize()
         for f in fr]
-    print(friends)
 
     return jsonify({'friends': friends}), 200
 
@@ -208,10 +207,10 @@ def message_received(methods=['GET', 'POST']):
     print('received message')
 
 
-@socketio.on('global message')
+@socketIO.on('global message')
 def global_message(json, methods=['GET', 'POST']):
     print('received event: ' + str(json))
-    socketio.emit('global response', json, callback=message_received)
+    socketIO.emit('global response', json, callback=message_received)
 
 
 # json of a message:
@@ -222,7 +221,7 @@ def global_message(json, methods=['GET', 'POST']):
 # contents
 
 
-@socketio.event
+@socketIO.event
 def send_to_room(json):
     print("sending message to room")
 
@@ -237,10 +236,10 @@ def send_to_room(json):
         'contents': json['contents']
     }
 
-    socketio.emit('room_name_response', new_json, to=new_json['roomName'])
+    socketIO.emit('room_name_response', new_json, to=new_json['roomName'])
 
 
-@socketio.event
+@socketIO.event
 def join(message):
     recipient = message['recipient']
     token = message['token']
@@ -278,10 +277,10 @@ def join(message):
 
     print("{}: {}".format(username, sid))
     print("{}: {}".format(username, rooms()))
-    socketio.emit('room_name_response', {'roomName': room_name, 'recipient': recipient}, to=sid)
+    socketIO.emit('room_name_response', {'roomName': room_name, 'recipient': recipient}, to=sid)
 
 
-@socketio.event
+@socketIO.event
 def leave(message):
     recipient = message['recipient']
     token = message['token']
@@ -310,4 +309,4 @@ def leave(message):
 
 
 if __name__ == '__main__':
-    socketio.run(app, host='127.0.0.1', port=8081, debug=True)
+    socketIO.run(app, host='127.0.0.1', port=8081, debug=True)

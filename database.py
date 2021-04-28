@@ -6,6 +6,7 @@ from flask_sqlalchemy import SQLAlchemy
 from flask_mail import Mail
 from dotenv import load_dotenv
 from flask import Flask
+from flask_cors import CORS
 import os
 
 dotenv_path = os.path.join(os.path.dirname(__file__), '.env')
@@ -26,6 +27,7 @@ db = SQLAlchemy(app)
 auth = HTTPBasicAuth()
 mail = Mail(app)
 chat_rooms = {}
+cors = CORS(app)
 
 # TODO try to use gunicorn instead of app.py
 # INFO
@@ -34,5 +36,5 @@ chat_rooms = {}
 # the best option based on installed packages.
 
 async_mode = None
-socketio = SocketIO(app, async_mode=async_mode, cors_allowed_origins='*')
+socketIO = SocketIO(app, async_mode=async_mode, cors_allowed_origins='*')
 thread_lock = Lock()
