@@ -54,6 +54,14 @@ class User(db.Model):
             'email': self.email
         }
 
+    def serialize_for_other(self):
+        return {
+            'id': self.id,
+            'firstName': self.first_name,
+            'lastName': self.last_name,
+            'username': self.username
+        }
+
 
 class Message(db.Model):
     __tablename__ = 'messages'

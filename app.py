@@ -4,12 +4,12 @@ from datetime import datetime, timezone
 from flask import abort, jsonify, url_for, g, make_response
 from flask import request
 from flask_socketio import join_room, rooms
-from sqlalchemy import or_
+from sqlalchemy import or_, and_
 
 from api_utils import abort_with_message
 from database import app, db, auth, socketIO, chat_rooms
 from enums import FriendsRequestStatus
-from models import User, FriendsRequest
+from models import User, FriendsRequest, Message
 from room_utils import can_perform_in_room, is_room_already_created
 
 thread = None
@@ -62,7 +62,10 @@ def hello():
 @auth.login_required
 def get_auth_token():
     token = g.user.generate_auth_token(os.environ['TOKEN_TIME_VALIDITY'])
-    return jsonify({'token': token, 'duration': os.environ['TOKEN_TIME_VALIDITY'], 'username': g.user.username})
+    return jsonify({'token': token,
+                    'duration': os.environ['TOKEN_TIME_VALIDITY'],
+                    'username': g.user.username,
+                    'id': g.user.id})
 
 
 @app.route('/api/users/register', methods=['POST'])
@@ -93,7 +96,7 @@ def register_user():
     # msg = Message('Registration', sender=os.environ['MAIL_USERNAME'], recipients=[email])
     # msg.body = "Thank You for registering to c-hat."
     # mail.send(msg)
-    return jsonify({'id': user.id}), 201, {'Location': url_for('get_user_by_id', id=user.id, _external=True)}
+    return jsonify({'id': user.id}), 201, {'Location': url_for('get_user_by_id', _id=user.id, _external=True)}
 
 
 @app.route('/api/users/<_id>', methods=['GET'])
@@ -197,10 +200,33 @@ def get_my_friends():
         .all()
 
     friends = [
-        f.friends_request_sender.serialize() if f.friends_request_sender != user else f.friends_request_receiver.serialize()
+        f.friends_request_sender.serialize_for_other() if f.friends_request_sender != user else f.friends_request_receiver.serialize_for_other()
         for f in fr]
 
     return jsonify({'friends': friends}), 200
+
+
+@app.route('/api/messages/with/<int:user_id>/<int:page>', methods=['GET'])
+@auth.login_required()
+def get_messages_with(user_id, page):
+    user = g.user
+
+    user_with = User.query.get(user_id)
+    if not user_with:
+        abort_with_message("User not found", 404)
+
+    messages_query = Message.query \
+        .filter(and_(or_(Message.message_sender == user, Message.message_receiver == user),
+                     or_(Message.message_sender == user_with, Message.message_receiver == user_with))) \
+        .paginate(page=page, error_out=False, per_page=80)
+
+    messages = dict(datas=messages_query.items,
+                    total=messages_query.total,
+                    current_page=messages_query.page,
+                    per_page=messages_query.per_page,
+                    pages=messages_query.pages)
+
+    return {'messages': messages}, 200
 
 
 def message_received(methods=['GET', 'POST']):
@@ -213,30 +239,41 @@ def global_message(json, methods=['GET', 'POST']):
     socketIO.emit('global response', json, callback=message_received)
 
 
-# json of a message:
-# roomName
-# sender
-# token
-# receiver
-# contents
-
-
 @socketIO.event
 def send_to_room(json):
     print("sending message to room")
 
-    if can_perform_in_room(json['roomName'], json['token'], json['sender'], json['receiver']) is False:
-        print("{} can not send message to {}".format(json['sender'], json['roomName']))
+    room_name = json['roomName']
+    sender_username = json['sender']
+    sender_id = json['senderId']
+    receiver_username = json['receiver']
+    receiver_id = json['receiverId']
+    contents = json['contents']
+
+    if can_perform_in_room(room_name, json['token'], sender_username, receiver_username) is False:
+        print("{} can not send message to {}".format(sender_username, room_name))
         return
 
     new_json = {
-        'roomName': json['roomName'],
-        'sender': json['sender'],
-        'receiver': json['receiver'],
-        'contents': json['contents']
+        'roomName': room_name,
+        'sender': sender_username,
+        'sender_id': sender_id,
+        'receiver': receiver_username,
+        'receiver_id': receiver_id,
+        'contents': contents
     }
 
     socketIO.emit('room_name_response', new_json, to=new_json['roomName'])
+
+    msg = Message(
+        user_from_id=sender_id,
+        user_to_id=receiver_id,
+        timestamp=datetime.now(timezone.utc),
+        contents=contents
+    )
+
+    db.session.add(msg)
+    db.session.commit()
 
 
 @socketIO.event
