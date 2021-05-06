@@ -67,19 +67,18 @@ class Message(db.Model):
     __tablename__ = 'messages'
 
     id = db.Column(db.Integer, primary_key=True)
-    user_from_id = db.Column(db.Integer, ForeignKey('users.id'), nullable=False)
-    user_to_id = db.Column(db.Integer, ForeignKey('users.id'), nullable=False)
+    senderId = db.Column(db.Integer, ForeignKey('users.id'), nullable=False)
+    receiverId = db.Column(db.Integer, ForeignKey('users.id'), nullable=False)
     timestamp = db.Column(db.DateTime, nullable=False)
     contents = db.Column(db.String(), nullable=False)
-    message_sender = relationship("User", foreign_keys=[user_from_id])
-    message_receiver = relationship("User", foreign_keys=[user_to_id])
+    message_sender = relationship("User", foreign_keys=[senderId])
+    message_receiver = relationship("User", foreign_keys=[receiverId])
 
     def serialize(self):
         return {
-            'id': self.id,
-            'user_from_id': self.user_from_id,
-            'user_to_id': self.user_to_id,
-            'timestamp': self.timestamp,
+            'senderId': self.senderId,
+            'receiverId': self.receiverId,
+            'timestamp': self.timestamp.isoformat(),
             'contents': self.contents
         }
 

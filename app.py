@@ -27,7 +27,11 @@ def verify_password(username_or_token, password):
 
 
 # TODO fix error handling to return good json message
-# error handlers
+
+
+# ##############################
+#       ERROR HANDLERS
+# ##############################
 
 
 @app.errorhandler(405)
@@ -50,13 +54,9 @@ def wrong_credentials_handler(e):
     return jsonify(message="Not found"), 404
 
 
-# end of error handlers
-
-
-@app.route('/hello', methods=['GET'])
-def hello():
-    return jsonify({'hello': 'world'})
-
+# ##############################
+#             API
+# ##############################
 
 @app.route('/api/auth/login', methods=['POST'])
 @auth.login_required
@@ -92,7 +92,7 @@ def register_user():
 
     db.session.add(user)
     db.session.commit()
-    # TODO fix this long lasting email sending
+    # TODO fix this long lasting email sending, send it to new thread
     # msg = Message('Registration', sender=os.environ['MAIL_USERNAME'], recipients=[email])
     # msg.body = "Thank You for registering to c-hat."
     # mail.send(msg)
@@ -169,9 +169,9 @@ def get_my_invites(route):
     return jsonify({'invites': friends_requests_serialized})
 
 
-@app.route('/api/invites/<action>/<int:invite_id>', methods=['POST'])
+@app.route('/api/invites/<action>/<int:invite_id>', methods=['PUT'])
 @auth.login_required()
-def accept_invite(action, invite_id):
+def accept_or_reject_invite(action, invite_id):
     if action != 'accept' or action != 'reject':
         abort(make_response(jsonify(message="Not found"), 404))
 
@@ -220,7 +220,7 @@ def get_messages_with(user_id, page):
                      or_(Message.message_sender == user_with, Message.message_receiver == user_with))) \
         .paginate(page=page, error_out=False, per_page=80)
 
-    messages = dict(datas=messages_query.items,
+    messages = dict(datas=[item.serialize() for item in messages_query.items],
                     total=messages_query.total,
                     current_page=messages_query.page,
                     per_page=messages_query.per_page,
@@ -228,20 +228,20 @@ def get_messages_with(user_id, page):
 
     return {'messages': messages}, 200
 
+# ##############################
+#           SOCKETS
+# ##############################
+
 
 def message_received(methods=['GET', 'POST']):
     print('received message')
 
 
-@socketIO.on('global message')
-def global_message(json, methods=['GET', 'POST']):
-    print('received event: ' + str(json))
-    socketIO.emit('global response', json, callback=message_received)
-
-
-@socketIO.event
-def send_to_room(json):
+@socketIO.on('room message')
+def room_message(json):
+    print("=======================")
     print("sending message to room")
+    print(json)
 
     room_name = json['roomName']
     sender_username = json['sender']
@@ -249,34 +249,32 @@ def send_to_room(json):
     receiver_username = json['receiver']
     receiver_id = json['receiverId']
     contents = json['contents']
+    timestamp = datetime.now(timezone.utc)
 
     if can_perform_in_room(room_name, json['token'], sender_username, receiver_username) is False:
         print("{} can not send message to {}".format(sender_username, room_name))
         return
 
-    new_json = {
-        'roomName': room_name,
-        'sender': sender_username,
-        'sender_id': sender_id,
-        'receiver': receiver_username,
-        'receiver_id': receiver_id,
+    socketIO.emit('room response', {
+        'senderId': sender_id,
+        'receiverId': receiver_id,
+        'timestamp': timestamp.isoformat(),
         'contents': contents
-    }
-
-    socketIO.emit('room_name_response', new_json, to=new_json['roomName'])
+    }, to=json['roomName'])
 
     msg = Message(
-        user_from_id=sender_id,
-        user_to_id=receiver_id,
-        timestamp=datetime.now(timezone.utc),
+        senderId=sender_id,
+        receiverId=receiver_id,
+        timestamp=timestamp,
         contents=contents
     )
 
     db.session.add(msg)
     db.session.commit()
+    print("message sent")
 
 
-@socketIO.event
+@socketIO.on('join')
 def join(message):
     recipient = message['recipient']
     token = message['token']
@@ -312,9 +310,10 @@ def join(message):
 
     print("chat rooms: {}".format(chat_rooms))
 
-    print("{}: {}".format(username, sid))
-    print("{}: {}".format(username, rooms()))
-    socketIO.emit('room_name_response', {'roomName': room_name, 'recipient': recipient}, to=sid)
+    recipient_id = User.query.filter_by(username=recipient).first()
+    socketIO.emit('room name response', {'roomName': room_name,
+                                         'recipientId': recipient_id.id,
+                                         'recipient': recipient}, to=sid)
 
 
 @socketIO.event
