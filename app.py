@@ -6,10 +6,10 @@ from flask import request
 from flask_socketio import join_room, rooms
 from sqlalchemy import or_, and_
 
-from api_utils import abort_with_message
-from database import app, db, auth, socketIO, chat_rooms
+from api_utils import abort_with_message, ThreadedEmail
+from database import app, db, auth, socketIO, chat_rooms, mail
 from enums import FriendsRequestStatus
-from models import User, FriendsRequest, Message
+from models import User, FriendsRequest, ChatMessage
 from room_utils import can_perform_in_room, is_room_already_created
 
 thread = None
@@ -215,9 +215,9 @@ def get_messages_with(user_id, page):
     if not user_with:
         abort_with_message("User not found", 404)
 
-    messages_query = Message.query \
-        .filter(and_(or_(Message.message_sender == user, Message.message_receiver == user),
-                     or_(Message.message_sender == user_with, Message.message_receiver == user_with))) \
+    messages_query = ChatMessage.query \
+        .filter(and_(or_(ChatMessage.message_sender == user, ChatMessage.message_receiver == user),
+                     or_(ChatMessage.message_sender == user_with, ChatMessage.message_receiver == user_with))) \
         .paginate(page=page, error_out=False, per_page=80)
 
     messages = dict(datas=[item.serialize() for item in messages_query.items],
@@ -262,7 +262,7 @@ def room_message(json):
         'contents': contents
     }, to=json['roomName'])
 
-    msg = Message(
+    msg = ChatMessage(
         senderId=sender_id,
         receiverId=receiver_id,
         timestamp=timestamp,

@@ -63,8 +63,8 @@ class User(db.Model):
         }
 
 
-class Message(db.Model):
-    __tablename__ = 'messages'
+class ChatMessage(db.Model):
+    __tablename__ = 'chat_messages'
 
     id = db.Column(db.Integer, primary_key=True)
     senderId = db.Column(db.Integer, ForeignKey('users.id'), nullable=False)
