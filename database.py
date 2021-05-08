@@ -23,6 +23,8 @@ app.config['MAIL_PASSWORD'] = os.environ['MAIL_PASSWORD']
 app.config['MAIL_SUPPRESS_SEND'] = False
 app.config['SECRET_KEY'] = os.environ['SECRET_KEY']
 
+app.app_context().push()
+
 db = SQLAlchemy(app)
 auth = HTTPBasicAuth()
 mail = Mail(app)

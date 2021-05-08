@@ -92,10 +92,7 @@ def register_user():
 
     db.session.add(user)
     db.session.commit()
-    # TODO fix this long lasting email sending, send it to new thread
-    # msg = Message('Registration', sender=os.environ['MAIL_USERNAME'], recipients=[email])
-    # msg.body = "Thank You for registering to c-hat."
-    # mail.send(msg)
+    ThreadedEmail(email).start()
     return jsonify({'id': user.id}), 201, {'Location': url_for('get_user_by_id', _id=user.id, _external=True)}
 
 
