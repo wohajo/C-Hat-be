@@ -31,8 +31,6 @@ def can_perform_in_room(room_name, token, username, recipient):
         computed_room = str(hash(frozenset([recipient, username])))
 
         if username_from_token == username and computed_room == room_name:
-            print("token_user: {}, user: {}".format(username_from_token, username))
-            print("room_name: {}, hash: {}".format(room_name, computed_room))
             return True
         else:
             return False

@@ -100,5 +100,7 @@ class FriendsRequest(db.Model):
             'user_from_id': self.user_from_id,
             'user_to_id': self.user_to_id,
             'timestamp': self.timestamp.isoformat(),
+            'sender': self.friends_request_sender.serialize_for_other(),
+            'receiver': self.friends_request_receiver.serialize_for_other(),
             'status': self.status.name
         }
