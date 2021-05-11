@@ -308,8 +308,10 @@ def join(message):
     recipient = message['recipient']
     token = message['token']
     username = message['username']
+
     room_name = str(hash(frozenset([recipient, username])))
     sid = request.sid
+    recipient_from_db = User.query.filter_by(username=recipient).first()
 
     if username == recipient:
         print("User cannot join room with himself")
@@ -328,7 +330,11 @@ def join(message):
         users_in_room = chat_rooms[room_name]
 
         if username in users_in_room:
-            print("{} already in {}".format(username, room_name))
+            print("{} already in {}, emitting room name response".format(username, room_name))
+            join_room(room_name)
+            socketIO.emit('room name response', {'roomName': room_name,
+                                                 'recipientId': recipient_from_db.id,
+                                                 'recipient': recipient}, to=sid)
         elif len(users_in_room) < 3:
             users_in_room.append(username)
             chat_rooms[room_name] = users_in_room
@@ -337,9 +343,8 @@ def join(message):
 
     print("chat rooms: {}".format(chat_rooms))
 
-    recipient_id = User.query.filter_by(username=recipient).first()
     socketIO.emit('room name response', {'roomName': room_name,
-                                         'recipientId': recipient_id.id,
+                                         'recipientId': recipient_from_db.id,
                                          'recipient': recipient}, to=sid)
 
 
@@ -370,6 +375,18 @@ def leave(message):
 
     if len(users_in_room) == 0:
         chat_rooms.pop(room_name)
+
+
+@socketIO.event
+def connect():
+    print(f"connected {request.sid}")
+    print(chat_rooms)
+
+
+@socketIO.event
+def disconnect():
+    print(f"user disconnected {request.sid}")
+    print(chat_rooms)
 
 
 if __name__ == '__main__':
