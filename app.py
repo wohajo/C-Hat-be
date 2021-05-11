@@ -125,12 +125,23 @@ def invite_user(user_id):
     if not user_to:
         abort(make_response(jsonify(message="User not found"), 404))
 
-    friends_request_check = FriendsRequest.query.filter_by(user_from_id=user_from.id,
-                                                           user_to_id=user_to.id,
-                                                           status=FriendsRequestStatus.pending).all()
+    friends_request_check_pending = FriendsRequest.query \
+        .filter(and_(or_(and_(FriendsRequest.user_to_id == g.user.id, FriendsRequest.user_from_id == user_id),
+                         and_(FriendsRequest.user_from_id == g.user.id, FriendsRequest.user_to_id == user_id)),
+                     FriendsRequest.status == FriendsRequestStatus.pending)
+                ).all()
 
-    if friends_request_check:
+    if len(friends_request_check_pending) != 0:
         abort(make_response(jsonify(message="Invitation is already pending"), 409))
+
+    friends_request_check_accepted = FriendsRequest.query \
+        .filter(and_(or_(and_(FriendsRequest.user_to_id == g.user.id, FriendsRequest.user_from_id == user_id),
+                         and_(FriendsRequest.user_from_id == g.user.id, FriendsRequest.user_to_id == user_id)),
+                     FriendsRequest.status == FriendsRequestStatus.accepted)
+                ).all()
+
+    if len(friends_request_check_accepted) != 0:
+        abort(make_response(jsonify(message="You are already friends"), 409))
 
     friends_request = FriendsRequest(
         user_from_id=user_from.id,
@@ -155,10 +166,12 @@ def get_my_invites(route):
 
     friends_requests = []
 
-    if route == "incoming":
-        friends_requests = FriendsRequest.query.filter_by(user_to_id=user.id).all()
+    if route == "pending":
+        friends_requests = FriendsRequest.query.filter_by(user_to_id=user.id).filter_by(
+            status=FriendsRequestStatus.pending).all()
     elif route == "sent":
-        friends_requests = FriendsRequest.query.filter_by(user_from_id=user.id).all()
+        friends_requests = FriendsRequest.query.filter_by(user_from_id=user.id).filter_by(
+            status=FriendsRequestStatus.pending).all()
     else:
         abort(make_response(jsonify(message="Not found"), 404))
 
@@ -169,8 +182,8 @@ def get_my_invites(route):
 @app.route('/api/invites/<action>/<int:invite_id>', methods=['PUT'])
 @auth.login_required()
 def accept_or_reject_invite(action, invite_id):
-    if action != 'accept' or action != 'reject':
-        abort(make_response(jsonify(message="Not found"), 404))
+    if action != 'accept' and action != 'reject':
+        abort(make_response(jsonify(message="Page not found"), 404))
 
     friends_request = FriendsRequest.query.filter_by(id=invite_id).first()
 
@@ -182,6 +195,22 @@ def accept_or_reject_invite(action, invite_id):
     else:
         friends_request.status = FriendsRequestStatus.rejected
     db.session.commit()
+
+    # TODO change timestamp to accept/reject time?
+
+    return jsonify(message="OK"), 200
+
+
+@app.route('/api/friends/remove/<int:friend_id>', methods=['DELETE'])
+@auth.login_required()
+def remove_friend(friend_id):
+    FriendsRequest.query \
+        .filter(and_(or_(FriendsRequest.user_to_id == g.user.id, FriendsRequest.user_from_id == friend_id),
+                     or_(FriendsRequest.user_from_id == g.user.id, FriendsRequest.user_to_id == friend_id))).delete()
+
+    db.session.commit()
+
+    # TODO handle multiple requests
 
     return jsonify(message="OK"), 200
 
@@ -234,7 +263,7 @@ def message_received(methods=['GET', 'POST']):
     print('received message')
 
 
-@socketIO.on('room message')
+@socketIO.event
 def room_message(json):
     print("=======================")
     print("sending message to room")
@@ -252,12 +281,13 @@ def room_message(json):
         print("{} can not send message to {}".format(sender_username, room_name))
         return
 
-    socketIO.emit('room response', {
+    socketIO.emit("room_response", {
+        'roomName': room_name,
         'senderId': sender_id,
         'receiverId': receiver_id,
         'timestamp': timestamp.isoformat(),
         'contents': contents
-    }, to=json['roomName'])
+    }, to=room_name, include_self=True)
 
     msg = ChatMessage(
         senderId=sender_id,
@@ -269,6 +299,8 @@ def room_message(json):
     db.session.add(msg)
     db.session.commit()
     print("message sent")
+    print("chat rooms: {}".format(chat_rooms))
+    print("=======================")
 
 
 @socketIO.on('join')
@@ -278,8 +310,6 @@ def join(message):
     username = message['username']
     room_name = str(hash(frozenset([recipient, username])))
     sid = request.sid
-
-    print("{} {} {} to {}".format(room_name, token, username, recipient))
 
     if username == recipient:
         print("User cannot join room with himself")
@@ -334,6 +364,7 @@ def leave(message):
         users_in_room.remove(username)
         print("{} left {}".format(username, room_name))
         chat_rooms[room_name] = users_in_room
+        print("chat rooms: {}".format(chat_rooms))
     else:
         print("{} can not leave {}, as he is not in this room".format(username, room_name))
 
