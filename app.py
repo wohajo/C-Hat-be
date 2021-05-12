@@ -254,6 +254,15 @@ def get_messages_with(user_id, page):
 
     return {'messages': messages}, 200
 
+
+@app.route('/api/encryption/base', methods=['GET'])
+@auth.login_required()
+def get_base():
+    base = os.environ['G_BASE']
+
+    return {'base': base}, 200
+
+
 # ##############################
 #           SOCKETS
 # ##############################
