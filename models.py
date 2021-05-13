@@ -19,6 +19,7 @@ class User(db.Model):
     username = db.Column(db.String(64), nullable=False, unique=True)
     password_hash = db.Column(db.String(128), nullable=False)
     email = db.Column(db.String(128), nullable=False, unique=True)
+    public_key = db.Column(db.String(), nullable=True)
 
     def __repr__(self):
         return '<id {}, first name: {}, last name: {}, username: {}, email: {}>'.format(
@@ -51,7 +52,8 @@ class User(db.Model):
             'firstName': self.first_name,
             'lastName': self.last_name,
             'username': self.username,
-            'email': self.email
+            'email': self.email,
+            'publicKey': self.public_key
         }
 
     def serialize_for_other(self):
@@ -59,7 +61,8 @@ class User(db.Model):
             'id': self.id,
             'firstName': self.first_name,
             'lastName': self.last_name,
-            'username': self.username
+            'username': self.username,
+            'publicKey': self.public_key
         }
 
 

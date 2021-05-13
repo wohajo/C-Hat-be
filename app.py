@@ -102,7 +102,7 @@ def get_user_by_id(_id):
     user = User.query.get(_id)
     if not user:
         abort(make_response(jsonify(message="User not found"), 404))
-    return jsonify({'username': user.username})
+    return user.serialize_for_other(), 201
 
 
 @app.route('/api/users/find/<string:username>', methods=['GET'])
@@ -259,9 +259,26 @@ def get_messages_with(user_id, page):
 @auth.login_required()
 def get_base():
     base = os.environ['G_BASE']
-
     return {'base': base}, 200
 
+
+@app.route('/api/encryption/update-public-key/<int:user_id>', methods=['PUT'])
+@auth.login_required()
+def update_public_key(user_id):
+    logged_user = g.user
+    public_key = request.json.get('publicKey')
+
+    if logged_user.id != user_id:
+        abort(401, "Unauthorized")
+
+    if not public_key or len(public_key) == 0:
+        abort(403, "Public key cannot be empty")
+
+    user = User.query.get(user_id)
+    user.public_key = public_key
+
+    db.session.commit()
+    return {'publicKey': public_key}, 200
 
 # ##############################
 #           SOCKETS
@@ -386,6 +403,7 @@ def leave(message):
         chat_rooms.pop(room_name)
 
 
+# TODO remove user from rooms after being disconnected
 @socketIO.event
 def connect():
     print(f"connected {request.sid}")
