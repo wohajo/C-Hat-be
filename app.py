@@ -3,11 +3,12 @@ from datetime import datetime, timezone
 
 from flask import abort, jsonify, url_for, g, make_response
 from flask import request
-from flask_socketio import join_room, rooms
+from flask_socketio import join_room
 from sqlalchemy import or_, and_
 
+import database
 from api_utils import abort_with_message, ThreadedEmail
-from database import app, db, auth, socketIO, chat_rooms, mail
+from database import app, db, auth, socketIO, chat_rooms, users_sids
 from enums import FriendsRequestStatus
 from models import User, FriendsRequest, ChatMessage
 from room_utils import can_perform_in_room, is_room_already_created
@@ -280,6 +281,7 @@ def update_public_key(user_id):
     db.session.commit()
     return {'publicKey': public_key}, 200
 
+
 # ##############################
 #           SOCKETS
 # ##############################
@@ -403,16 +405,42 @@ def leave(message):
         chat_rooms.pop(room_name)
 
 
-# TODO remove user from rooms after being disconnected
+@socketIO.event
+def sid_event(json):
+    username = json['username']
+    sid = json['sid']
+    users_sids[sid] = username
+
+
 @socketIO.event
 def connect():
     print(f"connected {request.sid}")
-    print(chat_rooms)
+    socketIO.emit("sid", {"sid": request.sid}, to=request.sid)
 
 
 @socketIO.event
 def disconnect():
-    print(f"user disconnected {request.sid}")
+    sid = request.sid
+    print(chat_rooms)
+    print(f"user disconnected {sid}")
+    for room_name, users_in_room in chat_rooms.items():
+        temp_arr = chat_rooms[room_name]
+        if users_sids[sid] in users_in_room:
+            print("user was in room, removing...")
+            temp_arr.remove(users_sids[sid])
+            chat_rooms[room_name] = temp_arr
+    print(chat_rooms)
+
+    keys_to_delete = []
+    for room_name, users_in_room in chat_rooms.items():
+        if len(users_in_room) == 0:
+            keys_to_delete.append(room_name)
+
+    for key in keys_to_delete:
+        chat_rooms.pop(key)
+
+    users_sids.pop(sid)
+
     print(chat_rooms)
 
 

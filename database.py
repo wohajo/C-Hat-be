@@ -29,6 +29,7 @@ db = SQLAlchemy(app)
 auth = HTTPBasicAuth()
 mail = Mail(app)
 chat_rooms = {}
+users_sids = {}
 cors = CORS(app)
 
 # TODO try to use gunicorn instead of app.py
