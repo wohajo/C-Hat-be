@@ -7,7 +7,7 @@ from sqlalchemy.orm import relationship
 from werkzeug.security import generate_password_hash, check_password_hash
 
 from database import db, app
-from enums import FriendsRequestStatus
+from domain.enums import FriendsRequestStatus
 
 
 class User(db.Model):

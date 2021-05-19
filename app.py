@@ -1,17 +1,18 @@
-import os
 from datetime import datetime, timezone
 
-from flask import abort, jsonify, url_for, g, make_response
+from flask import jsonify, g
 from flask import request
 from flask_socketio import join_room
-from sqlalchemy import or_, and_
 
-import database
-from api_utils import abort_with_message, ThreadedEmail
 from database import app, db, auth, socketIO, chat_rooms, users_sids
-from enums import FriendsRequestStatus
-from models import User, FriendsRequest, ChatMessage
-from room_utils import can_perform_in_room, is_room_already_created
+from domain.models import User, ChatMessage
+from routes.auth.auth_api import auth_api
+from routes.encryption.encryption_api import encryption_api
+from routes.friends.friends_api import friends_api
+from routes.invites.invites_api import invites_api
+from routes.messages.messages_api import messages_api
+from routes.user.user_api import user_api
+from utils.room_utils import can_perform_in_room, is_room_already_created
 
 thread = None
 
@@ -59,236 +60,17 @@ def wrong_credentials_handler(e):
 #             API
 # ##############################
 
-@app.route('/api/auth/login', methods=['POST'])
-@auth.login_required
-def get_auth_token():
-    token = g.user.generate_auth_token(os.environ['TOKEN_TIME_VALIDITY'])
-    return jsonify({'token': token,
-                    'duration': os.environ['TOKEN_TIME_VALIDITY'],
-                    'username': g.user.username,
-                    'id': g.user.id})
-
-
-@app.route('/api/users/register', methods=['POST'])
-def register_user():
-    first_name = request.json.get('firstName')
-    last_name = request.json.get('lastName')
-    username = request.json.get('username')
-    password = request.json.get('password')
-    email = request.json.get('email')
-
-    # TODO validate email and stuff
-    # TODO return json on abort instead of html
-    if None in [first_name, last_name, username, password, email]:
-        abort_with_message("Form not complete", 400)
-    if User.query.filter_by(username=username).first() is not None:
-        abort_with_message("User already registered", 400)
-
-    user = User(
-        first_name=first_name,
-        last_name=last_name,
-        username=username,
-        email=email)
-    user.hash_password(password)
-
-    db.session.add(user)
-    db.session.commit()
-    ThreadedEmail(email).start()
-    return jsonify({'id': user.id}), 201, {'Location': url_for('get_user_by_id', _id=user.id, _external=True)}
-
-
-@app.route('/api/users/<_id>', methods=['GET'])
-@auth.login_required
-def get_user_by_id(_id):
-    user = User.query.get(_id)
-    if not user:
-        abort(make_response(jsonify(message="User not found"), 404))
-    return user.serialize_for_other(), 201
-
-
-@app.route('/api/users/find/<string:username>', methods=['GET'])
-@auth.login_required
-def find_users_with_username(username):
-    _username = username
-    users = User.query.filter(User.username.like('{}%'.format(username))).all()
-    users_serialized = [u.serialize() for u in users]
-
-    return jsonify({'users': users_serialized})
-
-
-@app.route('/api/users/invite/<int:user_id>', methods=['POST'])
-@auth.login_required
-def invite_user(user_id):
-    user_from = g.user
-    user_to = User.query.get(user_id)
-    if user_from == user_to:
-        abort(make_response(jsonify(message="You cannot invite yourself"), 403))
-    if not user_to:
-        abort(make_response(jsonify(message="User not found"), 404))
-
-    friends_request_check_pending = FriendsRequest.query \
-        .filter(and_(or_(and_(FriendsRequest.user_to_id == g.user.id, FriendsRequest.user_from_id == user_id),
-                         and_(FriendsRequest.user_from_id == g.user.id, FriendsRequest.user_to_id == user_id)),
-                     FriendsRequest.status == FriendsRequestStatus.pending)
-                ).all()
-
-    if len(friends_request_check_pending) != 0:
-        abort(make_response(jsonify(message="Invitation is already pending"), 409))
-
-    friends_request_check_accepted = FriendsRequest.query \
-        .filter(and_(or_(and_(FriendsRequest.user_to_id == g.user.id, FriendsRequest.user_from_id == user_id),
-                         and_(FriendsRequest.user_from_id == g.user.id, FriendsRequest.user_to_id == user_id)),
-                     FriendsRequest.status == FriendsRequestStatus.accepted)
-                ).all()
-
-    if len(friends_request_check_accepted) != 0:
-        abort(make_response(jsonify(message="You are already friends"), 409))
-
-    friends_request = FriendsRequest(
-        user_from_id=user_from.id,
-        user_to_id=user_to.id,
-        timestamp=datetime.now(timezone.utc),
-        status=FriendsRequestStatus.pending,
-    )
-
-    db.session.add(friends_request)
-    db.session.commit()
-
-    return jsonify({'id': friends_request.id})
-
-
-@app.route('/api/invites/my/<route>', methods=['GET'])
-@auth.login_required()
-def get_my_invites(route):
-    user = g.user
-
-    if not user:
-        abort(make_response(jsonify(message="User not found"), 404))
-
-    friends_requests = []
-
-    if route == "pending":
-        friends_requests = FriendsRequest.query.filter_by(user_to_id=user.id).filter_by(
-            status=FriendsRequestStatus.pending).all()
-    elif route == "sent":
-        friends_requests = FriendsRequest.query.filter_by(user_from_id=user.id).filter_by(
-            status=FriendsRequestStatus.pending).all()
-    else:
-        abort(make_response(jsonify(message="Not found"), 404))
-
-    friends_requests_serialized = [fr.serialize() for fr in friends_requests]
-    return jsonify({'invites': friends_requests_serialized})
-
-
-@app.route('/api/invites/<action>/<int:invite_id>', methods=['PUT'])
-@auth.login_required()
-def accept_or_reject_invite(action, invite_id):
-    if action != 'accept' and action != 'reject':
-        abort(make_response(jsonify(message="Page not found"), 404))
-
-    friends_request = FriendsRequest.query.filter_by(id=invite_id).first()
-
-    if not friends_request:
-        abort(make_response(jsonify(message="Invite not found"), 404))
-
-    if action == "accept":
-        friends_request.status = FriendsRequestStatus.accepted
-    else:
-        friends_request.status = FriendsRequestStatus.rejected
-    db.session.commit()
-
-    # TODO change timestamp to accept/reject time?
-
-    return jsonify(message="OK"), 200
-
-
-@app.route('/api/friends/remove/<int:friend_id>', methods=['DELETE'])
-@auth.login_required()
-def remove_friend(friend_id):
-    FriendsRequest.query \
-        .filter(and_(or_(FriendsRequest.user_to_id == g.user.id, FriendsRequest.user_from_id == friend_id),
-                     or_(FriendsRequest.user_from_id == g.user.id, FriendsRequest.user_to_id == friend_id))).delete()
-
-    db.session.commit()
-
-    # TODO handle multiple requests
-
-    return jsonify(message="OK"), 200
-
-
-@app.route('/api/friends/my', methods=['GET'])
-@auth.login_required()
-def get_my_friends():
-    user = g.user
-
-    fr = db.session.query(FriendsRequest) \
-        .filter(or_(FriendsRequest.friends_request_sender == user, FriendsRequest.friends_request_receiver == user)) \
-        .filter_by(status=FriendsRequestStatus.accepted) \
-        .all()
-
-    friends = [
-        f.friends_request_sender.serialize_for_other() if f.friends_request_sender != user else f.friends_request_receiver.serialize_for_other()
-        for f in fr]
-
-    return jsonify({'friends': friends}), 200
-
-
-@app.route('/api/messages/with/<int:user_id>/<int:page>', methods=['GET'])
-@auth.login_required()
-def get_messages_with(user_id, page):
-    user = g.user
-
-    user_with = User.query.get(user_id)
-    if not user_with:
-        abort_with_message("User not found", 404)
-
-    messages_query = ChatMessage.query \
-        .filter(and_(or_(ChatMessage.message_sender == user, ChatMessage.message_receiver == user),
-                     or_(ChatMessage.message_sender == user_with, ChatMessage.message_receiver == user_with))) \
-        .paginate(page=page, error_out=False, per_page=80)
-
-    messages = dict(datas=[item.serialize() for item in messages_query.items],
-                    total=messages_query.total,
-                    current_page=messages_query.page,
-                    per_page=messages_query.per_page,
-                    pages=messages_query.pages)
-
-    return {'messages': messages}, 200
-
-
-@app.route('/api/encryption/base', methods=['GET'])
-@auth.login_required()
-def get_base():
-    base = os.environ['G_BASE']
-    return {'base': base}, 200
-
-
-@app.route('/api/encryption/update-public-key/<int:user_id>', methods=['PUT'])
-@auth.login_required()
-def update_public_key(user_id):
-    logged_user = g.user
-    public_key = request.json.get('publicKey')
-
-    if logged_user.id != user_id:
-        abort(401, "Unauthorized")
-
-    if not public_key or len(public_key) == 0:
-        abort(403, "Public key cannot be empty")
-
-    user = User.query.get(user_id)
-    user.public_key = public_key
-
-    db.session.commit()
-    return {'publicKey': public_key}, 200
+app.register_blueprint(auth_api)
+app.register_blueprint(user_api)
+app.register_blueprint(encryption_api)
+app.register_blueprint(friends_api)
+app.register_blueprint(invites_api)
+app.register_blueprint(messages_api)
 
 
 # ##############################
 #           SOCKETS
 # ##############################
-
-
-def message_received(methods=['GET', 'POST']):
-    print('received message')
 
 
 @socketIO.event
