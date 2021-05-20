@@ -1,8 +1,11 @@
+from datetime import datetime, timezone
+
 from flask import Blueprint, g, make_response, abort, jsonify
+from sqlalchemy import and_, or_
 
 from database import auth, db
 from domain.enums import FriendsRequestStatus
-from domain.models import FriendsRequest
+from domain.models import FriendsRequest, User
 
 invites_api = Blueprint("invites_api", __name__)
 
@@ -50,3 +53,44 @@ def accept_or_reject_invite(action, invite_id):
     # TODO change timestamp to accept/reject time?
 
     return jsonify(message="OK"), 200
+
+
+@invites_api.route('/api/invites/invite/<int:user_id>', methods=['POST'])
+@auth.login_required
+def invite_user(user_id):
+    user_from = g.user
+    user_to = User.query.get(user_id)
+    if user_from == user_to:
+        abort(make_response(jsonify(message="You cannot invite yourself"), 403))
+    if not user_to:
+        abort(make_response(jsonify(message="User not found"), 404))
+
+    friends_request_check_pending = FriendsRequest.query \
+        .filter(and_(or_(and_(FriendsRequest.user_to_id == g.user.id, FriendsRequest.user_from_id == user_id),
+                         and_(FriendsRequest.user_from_id == g.user.id, FriendsRequest.user_to_id == user_id)),
+                     FriendsRequest.status == FriendsRequestStatus.pending)
+                ).all()
+
+    if len(friends_request_check_pending) != 0:
+        abort(make_response(jsonify(message="Invitation is already pending"), 409))
+
+    friends_request_check_accepted = FriendsRequest.query \
+        .filter(and_(or_(and_(FriendsRequest.user_to_id == g.user.id, FriendsRequest.user_from_id == user_id),
+                         and_(FriendsRequest.user_from_id == g.user.id, FriendsRequest.user_to_id == user_id)),
+                     FriendsRequest.status == FriendsRequestStatus.accepted)
+                ).all()
+
+    if len(friends_request_check_accepted) != 0:
+        abort(make_response(jsonify(message="You are already friends"), 409))
+
+    friends_request = FriendsRequest(
+        user_from_id=user_from.id,
+        user_to_id=user_to.id,
+        timestamp=datetime.now(timezone.utc),
+        status=FriendsRequestStatus.pending,
+    )
+
+    db.session.add(friends_request)
+    db.session.commit()
+
+    return jsonify({'id': friends_request.id})

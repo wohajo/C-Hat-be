@@ -32,12 +32,6 @@ chat_rooms = {}
 users_sids = {}
 cors = CORS(app)
 
-# TODO try to use gunicorn instead of app.py
-# INFO
-# Set this variable to "threading", "eventlet" or "gevent" to test the
-# different async modes, or leave it set to None for the application to choose
-# the best option based on installed packages.
-
-async_mode = None
+async_mode = "eventlet"
 socketIO = SocketIO(app, async_mode=async_mode, cors_allowed_origins='*')
 thread_lock = Lock()

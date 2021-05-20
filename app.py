@@ -28,9 +28,6 @@ def verify_password(username_or_token, password):
     return True
 
 
-# TODO fix error handling to return good json message
-
-
 # ##############################
 #       ERROR HANDLERS
 # ##############################
@@ -52,7 +49,7 @@ def wrong_credentials_handler(e):
 
 
 @app.errorhandler(404)
-def wrong_credentials_handler(e):
+def not_found_handler(e):
     return jsonify(message="Not found"), 404
 
 
@@ -207,10 +204,11 @@ def disconnect():
     print(f"user disconnected {sid}")
     for room_name, users_in_room in chat_rooms.items():
         temp_arr = chat_rooms[room_name]
-        if users_sids[sid] in users_in_room:
-            print("user was in room, removing...")
-            temp_arr.remove(users_sids[sid])
-            chat_rooms[room_name] = temp_arr
+        if sid in users_sids.keys():
+            if users_sids[sid] in users_in_room:
+                print("user was in room, removing...")
+                temp_arr.remove(users_sids[sid])
+                chat_rooms[room_name] = temp_arr
     print(chat_rooms)
 
     keys_to_delete = []
@@ -221,7 +219,7 @@ def disconnect():
     for key in keys_to_delete:
         chat_rooms.pop(key)
 
-    users_sids.pop(sid)
+    users_sids.pop(sid, None)
 
     print(chat_rooms)
 
