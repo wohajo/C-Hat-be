@@ -7,6 +7,11 @@ from flask_mail import Message
 from database import mail, app
 
 
+def get_json(f):
+    with open(os.path.abspath(f"resources/{f}.json")) as file:
+        return json.loads(file.read())
+
+
 def abort_with_message(message, status):
     """
     Creates error status based on parameters.

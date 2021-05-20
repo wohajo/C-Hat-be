@@ -1,13 +1,14 @@
 from datetime import datetime
 from time import timezone
 
+from cerberus import Validator
 from flask import Blueprint, request, jsonify, url_for, abort, make_response, g
 from sqlalchemy import or_, and_
 
 from database import auth, db
 from domain.enums import FriendsRequestStatus
 from domain.models import User, FriendsRequest
-from utils.api_utils import abort_with_message, ThreadedEmail
+from utils.api_utils import abort_with_message, ThreadedEmail, get_json
 
 user_api = Blueprint('user_api', __name__)
 
@@ -20,8 +21,11 @@ def register_user():
     password = request.json.get('password')
     email = request.json.get('email')
 
-    # TODO validate email and stuff
-    # TODO return json on abort instead of html
+    user_validator = Validator()
+    user_validator.validate(request.json, get_json("user_schema"))
+    if user_validator.errors:
+        abort(make_response(jsonify(errors=user_validator.errors), 403))
+
     if None in [first_name, last_name, username, password, email]:
         abort_with_message("Form not complete", 400)
     if User.query.filter_by(username=username).first() is not None:

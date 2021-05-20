@@ -1,0 +1,33 @@
+{
+  "firstName": {
+    "type": "string",
+    "minlength": 4,
+    "maxlength": 128,
+    "required": true
+  },
+  "lastName": {
+    "type": "string",
+    "minlength": 4,
+    "maxlength": 128,
+    "required": true
+  },
+  "username": {
+    "type": "string",
+    "minlength": 4,
+    "maxlength": 128,
+    "required": true
+  },
+  "password": {
+    "type": "string",
+    "minlength": 8,
+    "maxlength": 128,
+    "required": true
+  },
+  "email": {
+    "type": "string",
+    "minlength": 4,
+    "maxlength": 128,
+    "regex": "^[a-zA-Z0-9_.+-]+@[a-zA-Z0-9-]+\\.[a-zA-Z0-9-.]+$",
+    "required": true
+  }
+}
