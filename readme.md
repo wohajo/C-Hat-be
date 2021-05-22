@@ -1,8 +1,8 @@
 ## Running the server
 `$ docker-compose up`
 ## Running the app
-gunicorn --bind=127.0.0.1:8081 --worker-class eventlet -w 1 app:app
-`$ python app.py`
+`$ gunicorn --bind=127.0.0.1:8081 --worker-class eventlet -w 1 app:app`
+
 ### Database migration 
 Use after importing new model into app.py.\
 Create migration:\

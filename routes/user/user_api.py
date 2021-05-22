@@ -53,11 +53,17 @@ def get_user_by_id(_id):
     return user.serialize_for_other(), 201
 
 
-@user_api.route('/api/users/find/<string:username>', methods=['GET'])
+# TODO fix search not working sometimes, possibly sqlalch err
+@user_api.route('/api/users/find/<string:option>/<string:searched_user>', methods=['GET'])
 @auth.login_required
-def find_users_with_username(username):
-    _username = username
-    users = User.query.filter(User.username.like('{}%'.format(username))).all()
-    users_serialized = [u.serialize() for u in users]
-
-    return jsonify({'users': users_serialized})
+def find_users_with_username(option, searched_user):
+    if option == "username":
+        users = User.query.filter(User.username.ilike(f'%{searched_user}%')).all()
+        users_serialized = [u.serialize() for u in users]
+        return jsonify({'users': users_serialized}), 200
+    elif option == "name":
+        users = User.query.filter(User.first_name.ilike(f'%{searched_user}%')).all()
+        users_serialized = [u.serialize() for u in users]
+        return jsonify({'users': users_serialized}), 200
+    else:
+        abort(404)
