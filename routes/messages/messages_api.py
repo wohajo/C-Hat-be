@@ -1,5 +1,5 @@
 from flask import Blueprint, g
-from sqlalchemy import or_, and_
+from sqlalchemy import or_, and_, desc
 
 from database import auth
 from domain.models import User, ChatMessage
@@ -20,9 +20,10 @@ def get_messages_with(user_id, page):
     messages_query = ChatMessage.query \
         .filter(and_(or_(ChatMessage.message_sender == user, ChatMessage.message_receiver == user),
                      or_(ChatMessage.message_sender == user_with, ChatMessage.message_receiver == user_with))) \
+        .order_by(desc(ChatMessage.id)) \
         .paginate(page=page, error_out=False, per_page=80)
 
-    messages = dict(datas=[item.serialize() for item in messages_query.items],
+    messages = dict(datas=[item.serialize() for item in messages_query.items][::-1],
                     total=messages_query.total,
                     current_page=messages_query.page,
                     per_page=messages_query.per_page,

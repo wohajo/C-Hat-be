@@ -79,6 +79,7 @@ class ChatMessage(db.Model):
 
     def serialize(self):
         return {
+            'id': self.id,
             'senderId': self.senderId,
             'receiverId': self.receiverId,
             'timestamp': self.timestamp.isoformat(),

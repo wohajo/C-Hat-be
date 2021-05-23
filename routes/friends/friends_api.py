@@ -12,10 +12,11 @@ friends_api = Blueprint("friends_api", __name__)
 @auth.login_required()
 def remove_friend(friend_id):
     FriendsRequest.query \
-        .filter(and_(or_(FriendsRequest.user_to_id == g.user.id, FriendsRequest.user_from_id == friend_id),
-                     or_(FriendsRequest.user_from_id == g.user.id, FriendsRequest.user_to_id == friend_id))).delete()
+        .filter(or_(and_(FriendsRequest.user_to_id == g.user.id, FriendsRequest.user_from_id == friend_id),
+                    and_(FriendsRequest.user_from_id == g.user.id, FriendsRequest.user_to_id == friend_id))).delete()
 
     db.session.commit()
+
     return jsonify(message="OK"), 200
 
 

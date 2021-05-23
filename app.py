@@ -88,14 +88,6 @@ def room_message(json):
         print("{} can not send message to {}".format(sender_username, room_name))
         return
 
-    socketIO.emit("room_response", {
-        'roomName': room_name,
-        'senderId': sender_id,
-        'receiverId': receiver_id,
-        'timestamp': timestamp.isoformat(),
-        'contents': contents
-    }, to=room_name, include_self=True)
-
     msg = ChatMessage(
         senderId=sender_id,
         receiverId=receiver_id,
@@ -105,6 +97,16 @@ def room_message(json):
 
     db.session.add(msg)
     db.session.commit()
+
+    socketIO.emit("room_response", {
+        'id': msg.id,
+        'roomName': room_name,
+        'senderId': sender_id,
+        'receiverId': receiver_id,
+        'timestamp': timestamp.isoformat(),
+        'contents': contents
+    }, to=room_name, include_self=True)
+
     print("message sent")
     print("chat rooms: {}".format(chat_rooms))
     print("=======================")
