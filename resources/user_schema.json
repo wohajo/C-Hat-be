@@ -1,13 +1,13 @@
 {
   "firstName": {
     "type": "string",
-    "minlength": 4,
+    "minlength": 2,
     "maxlength": 128,
     "required": true
   },
   "lastName": {
     "type": "string",
-    "minlength": 4,
+    "minlength": 2,
     "maxlength": 128,
     "required": true
   },

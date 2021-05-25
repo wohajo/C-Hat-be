@@ -37,7 +37,7 @@ def register_user():
     db.session.add(user)
     db.session.commit()
     ThreadedEmail(email).start()
-    return jsonify({'id': user.id}), 201, {'Location': url_for('get_user_by_id', _id=user.id, _external=True)}
+    return jsonify({'id': user.id}), 201, {'Location': url_for('user_api.get_user_by_id', _id=user.id, _external=True)}
 
 
 @user_api.route('/api/users/<_id>', methods=['GET'])
