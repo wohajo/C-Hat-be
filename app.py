@@ -74,7 +74,6 @@ app.register_blueprint(messages_api)
 def room_message(json):
     print("=======================")
     print("sending message to room")
-    print(json)
 
     room_name = json['roomName']
     sender_username = json['sender']
@@ -108,7 +107,6 @@ def room_message(json):
     }, to=room_name, include_self=True)
 
     print("message sent")
-    print("chat rooms: {}".format(chat_rooms))
     print("=======================")
 
 
