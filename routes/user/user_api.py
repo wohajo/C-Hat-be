@@ -25,7 +25,7 @@ def register_user():
     if None in [first_name, last_name, username, password, email]:
         abort_with_message("Form not complete", 400)
     if User.query.filter_by(username=username).first() is not None:
-        abort_with_message("User already registered", 400)
+        abort_with_message("Taki użytkownik już istnieje", 400)
 
     user = User(
         first_name=first_name,

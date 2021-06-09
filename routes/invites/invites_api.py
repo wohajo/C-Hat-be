@@ -61,7 +61,7 @@ def invite_user(user_id):
     user_from = g.user
     user_to = User.query.get(user_id)
     if user_from == user_to:
-        abort(make_response(jsonify(message="You cannot invite yourself"), 403))
+        abort(make_response(jsonify(message="Nie możesz zaprosić siebie"), 403))
     if not user_to:
         abort(make_response(jsonify(message="User not found"), 404))
 
@@ -72,7 +72,7 @@ def invite_user(user_id):
                 ).all()
 
     if len(friends_request_check_pending) != 0:
-        abort(make_response(jsonify(message="Invitation is already pending"), 409))
+        abort(make_response(jsonify(message="Zaproszenie oczekuje na akceptację"), 409))
 
     friends_request_check_accepted = FriendsRequest.query \
         .filter(and_(or_(and_(FriendsRequest.user_to_id == g.user.id, FriendsRequest.user_from_id == user_id),
@@ -81,7 +81,7 @@ def invite_user(user_id):
                 ).all()
 
     if len(friends_request_check_accepted) != 0:
-        abort(make_response(jsonify(message="You are already friends"), 409))
+        abort(make_response(jsonify(message="Już jesteście znajomymi"), 409))
 
     friends_request = FriendsRequest(
         user_from_id=user_from.id,

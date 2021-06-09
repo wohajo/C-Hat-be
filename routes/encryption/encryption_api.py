@@ -22,10 +22,10 @@ def update_public_key(user_id):
     public_key = request.json.get('publicKey')
 
     if logged_user.id != user_id:
-        abort(401, "Unauthorized")
+        abort(401, "Brak autoryzacji")
 
     if not public_key or len(public_key) == 0:
-        abort(403, "Public key cannot be empty")
+        abort(403, "Klucz publiczny nie może być pusty")
 
     user = User.query.get(user_id)
     user.public_key = public_key
